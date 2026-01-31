@@ -1,0 +1,34 @@
+services:
+    streaming:
+        image: streaming
+        container_name: streaming
+        restart: unless-stopped
+        build:
+            context: .
+            dockerfile: Dockerfile
+        ports:
+            - "2173:2173"
+            - "9173:9173"
+        env_file:
+            - .env
+        volumes:
+            - .:/var/www/html
+        networks:
+            - streaming
+
+    nginx:
+        image: nginx:alpine
+        container_name: streaming_nginx
+        restart: unless-stopped
+        ports:
+            - "80:80"
+        volumes:
+            - ./nginx.dev.conf:/etc/nginx/conf.d/default.conf
+        depends_on:
+            - streaming
+        networks:
+            - streaming
+
+networks:
+    streaming:
+        driver: bridge

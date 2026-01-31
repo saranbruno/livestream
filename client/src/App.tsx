@@ -4,12 +4,12 @@ export default function App() {
   const [msg, setMsg] = useState('Carregando...');
 
   useEffect(() => {
-    fetch('http://localhost:3000')
+    fetch('http://localhost/server')
       .then(res => res.text())
       .then(setMsg);
   }, []);
 
   return (
-    <div></div>
+    <div>{msg}</div>
   );
 }
