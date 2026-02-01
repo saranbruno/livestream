@@ -13,81 +13,50 @@ export function useWebRTCSocket(
     webrtc: WebRTCHandlers & { isRecording: boolean }
 ) {
     const socketRef = useRef<Socket | null>(null);
-    const peerIdRef = useRef<string | null>(null);
+    const viewersQueue = useRef<string[]>([]);
 
     useEffect(() => {
-        const socket = io({
-            path: "/server/socket.io",
-            transports: ["websocket"],
-        });
-
+        const socket = io({ path: "/server/socket.io", transports: ["websocket"] });
         socketRef.current = socket;
 
-        socket.emit("join-room", {
-            room,
-            role: "broadcaster",
-        });
+        socket.emit("join-room", { room, role: "broadcaster" });
 
-        socket.on("viewer-joined", async (viewerId) => {
-            peerIdRef.current = viewerId;
-
+        socket.on("viewer-requested-offer", async (viewerId: string) => {
             if (!webrtc.isRecording) {
-                console.log("Viewer entrou, aguardando start()");
+                viewersQueue.current.push(viewerId);
                 return;
             }
-
             const offer = await webrtc.createOffer();
             if (!offer) return;
-
-            socket.emit("webrtc-offer", {
-                to: viewerId,
-                offer,
-            });
-        });
-
-        socket.on("viewer-requested-offer", async (viewerId) => {
-            peerIdRef.current = viewerId;
-
-            if (!webrtc.isRecording) return;
-
-            const offer = await webrtc.createOffer();
-            if (!offer) return;
-
-            socket.emit("webrtc-offer", {
-                to: viewerId,
-                offer,
-            });
+            socket.emit("webrtc-offer", { to: viewerId, offer });
         });
 
         socket.on("webrtc-answer", webrtc.applyAnswer);
         socket.on("webrtc-ice", webrtc.addIceCandidate);
 
-        webrtc.onIceCandidate(candidate => {
-            if (!peerIdRef.current) return;
-            socket.emit("webrtc-ice", {
-                to: peerIdRef.current,
-                candidate,
+        webrtc.onIceCandidate((candidate) => {
+            const allViewers = [...viewersQueue.current];
+            viewersQueue.current = [];
+            allViewers.forEach((viewerId) => {
+                socket.emit("webrtc-ice", { to: viewerId, candidate });
             });
         });
 
         return () => {
             socket.disconnect();
-        }
-    }, [room]);
+        };
+    }, [room, webrtc]);
 
     useEffect(() => {
         if (!webrtc.isRecording) return;
-        if (!peerIdRef.current) return;
-
         (async () => {
-            const offer = await webrtc.createOffer();
-            if (!offer) return;
-
-            socketRef.current?.emit("webrtc-offer", {
-                to: peerIdRef.current,
-                offer,
-            });
+            const pending = [...viewersQueue.current];
+            viewersQueue.current = [];
+            for (const viewerId of pending) {
+                const offer = await webrtc.createOffer();
+                if (!offer) continue;
+                socketRef.current?.emit("webrtc-offer", { to: viewerId, offer });
+            }
         })();
     }, [webrtc.isRecording]);
 }
-
