@@ -42,13 +42,20 @@ function toArrayBuffer(data: ArrayBuffer | SharedArrayBuffer | Buffer): ArrayBuf
 io.on("connection", (socket) => {
     console.log("Socket:", socket.id);
 
-    socket.on("join-room", (room) => {
+    socket.on("join-room", ({ room, role }) => {
         socket.join(room);
-        socket.to(room).emit("viewer-joined", socket.id);
+
+        if (role === "viewer") {
+            socket.to(room).emit("viewer-joined", socket.id);
+        }
     });
 
-    socket.on("webrtc-offer", ({ room, offer }) => {
-        socket.to(room).emit("webrtc-offer", {
+    socket.on("request-offer", ({ room }) => {
+        socket.to(room).emit("viewer-requested-offer", socket.id);
+    });
+
+    socket.on("webrtc-offer", ({ to, offer }) => {
+        socket.to(to).emit("webrtc-offer", {
             offer,
             from: socket.id,
         });

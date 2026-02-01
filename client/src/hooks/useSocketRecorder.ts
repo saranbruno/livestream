@@ -1,54 +1,93 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 
-let globalSocket: Socket | null = null;
+type WebRTCHandlers = {
+    createOffer: () => Promise<RTCSessionDescriptionInit | null>;
+    applyAnswer: (answer: RTCSessionDescriptionInit) => void;
+    addIceCandidate: (candidate: RTCIceCandidateInit) => void;
+    onIceCandidate: (cb: (c: RTCIceCandidateInit) => void) => void;
+};
 
-function getSocket() {
-    if (!globalSocket) {
-        globalSocket = io({
+export function useWebRTCSocket(
+    room: string,
+    webrtc: WebRTCHandlers & { isRecording: boolean }
+) {
+    const socketRef = useRef<Socket | null>(null);
+    const peerIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        const socket = io({
             path: "/server/socket.io",
             transports: ["websocket"],
         });
-    } else if (!globalSocket.connected) {
-        globalSocket.connect();
-    }
-    return globalSocket;
-}
 
-type ChunkMeta = { id: string; room: string; mimeType: string };
+        socketRef.current = socket;
 
-export function useSocketRecorder(ROOM: string) {
-    useEffect(() => {
-        const socket = getSocket();
+        socket.emit("join-room", {
+            room,
+            role: "broadcaster",
+        });
 
-        const handleConnect = () => {
-            socket.emit("join-room", ROOM);
-        };
+        socket.on("viewer-joined", async (viewerId) => {
+            peerIdRef.current = viewerId;
 
-        socket.on("connect", handleConnect);
+            if (!webrtc.isRecording) {
+                console.log("Viewer entrou, aguardando start()");
+                return;
+            }
+
+            const offer = await webrtc.createOffer();
+            if (!offer) return;
+
+            socket.emit("webrtc-offer", {
+                to: viewerId,
+                offer,
+            });
+        });
+
+        socket.on("viewer-requested-offer", async (viewerId) => {
+            peerIdRef.current = viewerId;
+
+            if (!webrtc.isRecording) return;
+
+            const offer = await webrtc.createOffer();
+            if (!offer) return;
+
+            socket.emit("webrtc-offer", {
+                to: viewerId,
+                offer,
+            });
+        });
+
+        socket.on("webrtc-answer", webrtc.applyAnswer);
+        socket.on("webrtc-ice", webrtc.addIceCandidate);
+
+        webrtc.onIceCandidate(candidate => {
+            if (!peerIdRef.current) return;
+            socket.emit("webrtc-ice", {
+                to: peerIdRef.current,
+                candidate,
+            });
+        });
 
         return () => {
-            socket.off("connect", handleConnect);
-        };
-    }, [ROOM]);
+            socket.disconnect();
+        }
+    }, [room]);
 
-    const startLive = () => {
-        getSocket().emit("live-start", ROOM);
-    };
+    useEffect(() => {
+        if (!webrtc.isRecording) return;
+        if (!peerIdRef.current) return;
 
-    const sendChunk = async (blob: Blob, mimeType: string) => {
-        const buffer = await blob.arrayBuffer();
-        const meta: ChunkMeta = {
-            id: Date.now().toString(),
-            room: ROOM,
-            mimeType,
-        };
-        getSocket().emit("video-chunk", meta, buffer);
-    };
+        (async () => {
+            const offer = await webrtc.createOffer();
+            if (!offer) return;
 
-    const stopLive = () => {
-        getSocket().emit("live-end", ROOM);
-    };
-
-    return { startLive, sendChunk, stopLive };
+            socketRef.current?.emit("webrtc-offer", {
+                to: peerIdRef.current,
+                offer,
+            });
+        })();
+    }, [webrtc.isRecording]);
 }
+

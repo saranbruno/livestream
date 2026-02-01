@@ -1,39 +1,17 @@
-import { useEffect, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { useRef, useState, useCallback } from "react";
 
-export function useWebRTCStreamer(room: string) {
+export function useWebRTCStreamer() {
     const pcRef = useRef<RTCPeerConnection | null>(null);
-    const socketRef = useRef<Socket | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
 
-    useEffect(() => {
-        const socket = io({ path: "/server/socket.io" });
-        socketRef.current = socket;
+    const [isRecording, setIsRecording] = useState(false);
+    const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
 
-        socket.emit("join-room", room);
+    const iceCallbackRef = useRef<((c: RTCIceCandidateInit) => void) | null>(null);
 
-        socket.on("viewer-joined", async (viewerId) => {
-            if (!pcRef.current) return;
+    const start = useCallback(async () => {
+        if (isRecording) return;
 
-            const offer = await pcRef.current.createOffer();
-            await pcRef.current.setLocalDescription(offer);
-
-            socket.emit("webrtc-offer", { room, offer });
-        });
-
-        socket.on("webrtc-answer", async (answer) => {
-            await pcRef.current?.setRemoteDescription(answer);
-        });
-
-        socket.on("webrtc-ice", (candidate) => {
-            pcRef.current?.addIceCandidate(candidate);
-        });
-
-        return () => {
-            socket.disconnect()
-        };
-    }, [room]);
-
-    const start = async () => {
         const stream = await navigator.mediaDevices.getDisplayMedia({
             video: true,
             audio: true,
@@ -44,18 +22,60 @@ export function useWebRTCStreamer(room: string) {
         });
 
         pcRef.current = pc;
+        streamRef.current = stream;
 
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        setPreviewStream(stream);
 
-        pc.onicecandidate = (e) => {
+        pc.onicecandidate = e => {
             if (e.candidate) {
-                socketRef.current?.emit("webrtc-ice", {
-                    to: room,
-                    candidate: e.candidate,
-                });
+                iceCallbackRef.current?.(e.candidate);
             }
         };
+
+        stream.getVideoTracks()[0].onended = stop;
+        setIsRecording(true);
+    }, [isRecording]);
+
+    const stop = useCallback(() => {
+        pcRef.current?.getSenders().forEach(s => s.track?.stop());
+        pcRef.current?.close();
+
+        streamRef.current?.getTracks().forEach(t => t.stop());
+
+        pcRef.current = null;
+        streamRef.current = null;
+
+        setPreviewStream(null);
+        setIsRecording(false);
+    }, []);
+
+    const createOffer = async () => {
+        if (!pcRef.current) return null;
+
+        const offer = await pcRef.current.createOffer();
+        await pcRef.current.setLocalDescription(offer);
+        return offer;
     };
 
-    return { start };
+    const applyAnswer = (answer: RTCSessionDescriptionInit) =>
+        pcRef.current?.setRemoteDescription(answer);
+
+    const addIceCandidate = (candidate: RTCIceCandidateInit) =>
+        pcRef.current?.addIceCandidate(candidate);
+
+    const onIceCandidate = (cb: (c: RTCIceCandidateInit) => void) => {
+        iceCallbackRef.current = cb;
+    };
+
+    return {
+        start,
+        stop,
+        isRecording,
+        previewStream,
+        createOffer,
+        applyAnswer,
+        addIceCandidate,
+        onIceCandidate,
+    };
 }
