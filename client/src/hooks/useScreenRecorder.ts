@@ -1,86 +1,61 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { io, Socket } from "socket.io-client";
 
-type OnChunk = (chunk: { blob: Blob; mimeType: string }) => void;
+export function useWebRTCStreamer(room: string) {
+    const pcRef = useRef<RTCPeerConnection | null>(null);
+    const socketRef = useRef<Socket | null>(null);
 
-function pickMimeTypeWithAudio() {
-    const candidates = [
-        'video/webm; codecs="vp8,opus"',
-        'video/webm; codecs="vp9,opus"',
-        "video/webm",
-    ];
-    for (const t of candidates) {
-        if (MediaRecorder.isTypeSupported(t)) return t;
-    }
-    return "";
-}
-
-export default function useScreenRecorder(onChunk?: OnChunk) {
-    const [isRecording, setIsRecording] = useState(false);
-    const [videoUrl, setVideoUrl] = useState<string>();
-    const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-
-    const chunksRef = useRef<Blob[]>([]);
-    const recorderRef = useRef<MediaRecorder | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    
-    const onChunkRef = useRef(onChunk);
     useEffect(() => {
-        onChunkRef.current = onChunk;
-    }, [onChunk]);
+        const socket = io({ path: "/server/socket.io" });
+        socketRef.current = socket;
 
-    const startRecording = useCallback(async () => {
-        try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            
-            streamRef.current = stream;
-            setMediaStream(stream);
+        socket.emit("join-room", room);
 
-            const chosen = pickMimeTypeWithAudio();
-            const options = chosen ? { mimeType: chosen } : undefined;
-            const recorder = new MediaRecorder(stream, options);
-            
-            recorderRef.current = recorder;
-            chunksRef.current = [];
-            setVideoUrl(undefined);
+        socket.on("viewer-joined", async (viewerId) => {
+            if (!pcRef.current) return;
 
-            recorder.ondataavailable = (e) => {
-                if (e.data && e.data.size > 0) {
-                    chunksRef.current.push(e.data);
-                    onChunkRef.current?.({ 
-                        blob: e.data, 
-                        mimeType: recorder.mimeType || "video/webm" 
-                    });
-                }
-            };
+            const offer = await pcRef.current.createOffer();
+            await pcRef.current.setLocalDescription(offer);
 
-            recorder.onstop = () => {
-                const fullBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "video/webm" });
-                setVideoUrl(URL.createObjectURL(fullBlob));
-                chunksRef.current = [];
-                setIsRecording(false);
-                setMediaStream(null);
+            socket.emit("webrtc-offer", { room, offer });
+        });
 
-                streamRef.current?.getTracks().forEach((t) => t.stop());
-                streamRef.current = null;
-                recorderRef.current = null;
-            };
+        socket.on("webrtc-answer", async (answer) => {
+            await pcRef.current?.setRemoteDescription(answer);
+        });
 
-            stream.getVideoTracks()[0].onended = () => {
-                recorder.stop();
-            };
+        socket.on("webrtc-ice", (candidate) => {
+            pcRef.current?.addIceCandidate(candidate);
+        });
 
-            recorder.start(500);
-            setIsRecording(true);
-        } catch (err) {
-            console.error("Erro ao iniciar gravação:", err);
-        }
-    }, []);
+        return () => {
+            socket.disconnect()
+        };
+    }, [room]);
 
-    const stopRecording = useCallback(() => {
-        if (recorderRef.current?.state === "recording") {
-            recorderRef.current.stop();
-        }
-    }, []);
+    const start = async () => {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+        });
 
-    return { isRecording, startRecording, stopRecording, videoUrl, mediaStream };
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        });
+
+        pcRef.current = pc;
+
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+        pc.onicecandidate = (e) => {
+            if (e.candidate) {
+                socketRef.current?.emit("webrtc-ice", {
+                    to: room,
+                    candidate: e.candidate,
+                });
+            }
+        };
+    };
+
+    return { start };
 }

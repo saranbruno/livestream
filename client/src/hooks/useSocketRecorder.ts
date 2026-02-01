@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { io, Socket } from "socket.io-client";
 
 let globalSocket: Socket | null = null;
@@ -16,10 +16,8 @@ function getSocket() {
 }
 
 type ChunkMeta = { id: string; room: string; mimeType: string };
-type LiveChunk = { meta: ChunkMeta; buffer: ArrayBuffer };
 
 export function useSocketRecorder(ROOM: string) {
-
     useEffect(() => {
         const socket = getSocket();
 
@@ -35,23 +33,22 @@ export function useSocketRecorder(ROOM: string) {
     }, [ROOM]);
 
     const startLive = () => {
-        const socket = getSocket();
-
-        socket.emit("live-start", ROOM);
-    }
+        getSocket().emit("live-start", ROOM);
+    };
 
     const sendChunk = async (blob: Blob, mimeType: string) => {
-        const socket = getSocket();
         const buffer = await blob.arrayBuffer();
-        const meta: ChunkMeta = { id: Date.now().toString(), room: ROOM, mimeType };
-        socket.emit("video-chunk", meta, buffer);
+        const meta: ChunkMeta = {
+            id: Date.now().toString(),
+            room: ROOM,
+            mimeType,
+        };
+        getSocket().emit("video-chunk", meta, buffer);
     };
 
     const stopLive = () => {
-        const socket = getSocket();
-
-        socket.emit("live-end", ROOM);
-    }
+        getSocket().emit("live-end", ROOM);
+    };
 
     return { startLive, sendChunk, stopLive };
 }

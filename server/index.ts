@@ -40,59 +40,26 @@ function toArrayBuffer(data: ArrayBuffer | SharedArrayBuffer | Buffer): ArrayBuf
 }
 
 io.on("connection", (socket) => {
-    console.log(`[Connect] Socket ID: ${socket.id}`);
+    console.log("Socket:", socket.id);
 
-    socket.on("join-room", (room: string) => {
+    socket.on("join-room", (room) => {
         socket.join(room);
-        const isLive = livesOnline.includes(room);
-        console.log(`[Join] ${socket.id} entrou em ${room}. Live on? ${isLive}`);
-
-        socket.emit("joined-room", room, isLive);
-
-        if (isLive) {
-            const init = liveInitChunks.get(room);
-            if (init) {
-                console.log(`[Sync] Enviando Init gravado para ${socket.id}`);
-                socket.emit("live-chunk", { id: "init", room, mimeType: init.mimeType }, init.buffer);
-            }
-        }
+        socket.to(room).emit("viewer-joined", socket.id);
     });
 
-    socket.on("live-start", (room: string) => {
-        console.log(`[Streamer] Live iniciada: ${room}`);
-        if (!livesOnline.includes(room)) livesOnline.push(room);
-
-        liveInitChunks.delete(room);
-
-        io.to(room).emit("live-started");
+    socket.on("webrtc-offer", ({ room, offer }) => {
+        socket.to(room).emit("webrtc-offer", {
+            offer,
+            from: socket.id,
+        });
     });
 
-    socket.on("video-chunk", (meta: { id: string; room: string; mimeType: string }, payload: any) => {
-        if (!meta || !meta.room) return;
-
-        const buffer = toArrayBuffer(payload);
-
-        if (!liveInitChunks.has(meta.room)) {
-            console.log(`[Streamer] ${meta.room} - Capturado HEADER (Init). Bytes: ${buffer.byteLength}`);
-
-            liveInitChunks.set(meta.room, {
-                mimeType: meta.mimeType,
-                buffer
-            });
-
-            io.to(meta.room).emit("live-chunk", { ...meta, id: "init" }, buffer);
-            return;
-        }
-
-        io.to(meta.room).emit("live-chunk", meta, buffer);
+    socket.on("webrtc-answer", ({ to, answer }) => {
+        socket.to(to).emit("webrtc-answer", answer);
     });
 
-    socket.on("live-end", (room: string) => {
-        console.log(`[Streamer] Live fim: ${room}`);
-        const idx = livesOnline.indexOf(room);
-        if (idx !== -1) livesOnline.splice(idx, 1);
-        liveInitChunks.delete(room);
-        io.to(room).emit("live-ended");
+    socket.on("webrtc-ice", ({ to, candidate }) => {
+        socket.to(to).emit("webrtc-ice", candidate);
     });
 
     socket.on("disconnect", () => {
