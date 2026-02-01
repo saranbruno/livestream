@@ -1,9 +1,49 @@
-import express from 'express';
-import cors from 'cors';
+import express from "express";
+import cors from "cors";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-app.get('/', (req, res) => res.send('Backend OK!'));
+app.get("/", (req, res) => res.send("Backend OK!"));
 
-app.listen(2173, () => console.log('Backend em localhost'));
+const io = new Server(httpServer, {
+    cors: { origin: "*" },
+    maxHttpBufferSize: 50 * 1e6,
+});
+
+io.on("connection", (socket) => {
+    socket.on("join-room", (room: string) => {
+        socket.join(room);
+        socket.emit("joined-room", room);
+    });
+
+    socket.on(
+        "video-chunk",
+        (meta: { id: string; room: string; mimeType: string }, payload: ArrayBuffer | Buffer) => {
+            if (!meta?.room || !meta?.id || !meta?.mimeType) return;
+
+            const buffer =
+                payload instanceof ArrayBuffer
+                    ? payload
+                    : payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+
+            io.to(meta.room).emit("live-chunk", meta, buffer);
+        }
+    );
+
+    socket.on("disconnect", () => { });
+});
+
+const PORT = Number(process.env.BACKEND_PORT || 2173);
+
+httpServer.listen(PORT, () => {
+    console.log(`Backend + Socket.IO em http://localhost:${PORT}`);
+});
