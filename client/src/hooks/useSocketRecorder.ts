@@ -15,15 +15,10 @@ function getSocket() {
     return globalSocket;
 }
 
-export type ChunkMeta = { id: string; room: string; mimeType: string };
-export type LiveChunk = { meta: ChunkMeta; buffer: ArrayBuffer };
+type ChunkMeta = { id: string; room: string; mimeType: string };
+type LiveChunk = { meta: ChunkMeta; buffer: ArrayBuffer };
 
-export function useSocket(ROOM: string, onReceiveChunk?: (chunk: LiveChunk) => void) {
-    const onReceiveRef = useRef<typeof onReceiveChunk>(onReceiveChunk);
-
-    useEffect(() => {
-        onReceiveRef.current = onReceiveChunk;
-    }, [onReceiveChunk]);
+export function useSocketRecorder(ROOM: string) {
 
     useEffect(() => {
         const socket = getSocket();
@@ -32,20 +27,18 @@ export function useSocket(ROOM: string, onReceiveChunk?: (chunk: LiveChunk) => v
             socket.emit("join-room", ROOM);
         };
 
-        const handleLiveChunk = (meta: ChunkMeta, buffer: ArrayBuffer) => {
-            onReceiveRef.current?.({ meta, buffer });
-        };
-
         socket.on("connect", handleConnect);
-        socket.on("live-chunk", handleLiveChunk);
-
-        if (socket.connected) handleConnect();
 
         return () => {
             socket.off("connect", handleConnect);
-            socket.off("live-chunk", handleLiveChunk);
         };
     }, [ROOM]);
+
+    const startLive = () => {
+        const socket = getSocket();
+
+        socket.emit("live-start", ROOM);
+    }
 
     const sendChunk = async (blob: Blob, mimeType: string) => {
         const socket = getSocket();
@@ -54,5 +47,11 @@ export function useSocket(ROOM: string, onReceiveChunk?: (chunk: LiveChunk) => v
         socket.emit("video-chunk", meta, buffer);
     };
 
-    return { sendChunk };
+    const stopLive = () => {
+        const socket = getSocket();
+
+        socket.emit("live-end", ROOM);
+    }
+
+    return { startLive, sendChunk, stopLive };
 }

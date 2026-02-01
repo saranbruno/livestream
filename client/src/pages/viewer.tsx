@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LiveChunk, useSocket } from "../hooks/useSocket";
+import { LiveChunk, useSocketViewer } from "../hooks/useSocketViewer";
 
 export default function Viewer() {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,7 +57,7 @@ export default function Viewer() {
         );
     }, []);
 
-    useSocket("livedobruno", (chunkData: LiveChunk) => {
+    const { isOnline } = useSocketViewer("livedobruno", (chunkData: LiveChunk) => {
         const mime = chunkData.meta.mimeType;
 
         if (!mimeRef.current) mimeRef.current = mime;
@@ -131,6 +131,7 @@ export default function Viewer() {
             <button onClick={enableAudio}>Ativar áudio</button>
             <video ref={videoRef} autoPlay muted playsInline controls width="800" />
             <p>Chunks na fila: {queueSize}</p>
+            <p>Online: {isOnline ? "true" : "false"}</p>
         </div>
     );
 }

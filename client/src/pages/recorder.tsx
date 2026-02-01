@@ -1,8 +1,12 @@
 import useScreenRecorder from "../hooks/useScreenRecorder";
-import { useSocket } from "../hooks/useSocket";
+import { useSocketRecorder } from "../hooks/useSocketRecorder";
 
 export default function Recorder() {
-    const { sendChunk } = useSocket("livedobruno");
+    const {
+        startLive,
+        sendChunk,
+        stopLive
+    } = useSocketRecorder("livedobruno");
 
     const { isRecording, startRecording, stopRecording, videoUrl } = useScreenRecorder(({ blob, mimeType }) => {
         sendChunk(blob, mimeType);
@@ -10,11 +14,23 @@ export default function Recorder() {
 
     return (
         <div>
-            <button onClick={startRecording} disabled={isRecording}>
+            <button
+                onClick={() => {
+                    startRecording();
+                    startLive();
+                }}
+                disabled={isRecording}
+            >
                 Iniciar Gravação
             </button>
 
-            <button onClick={stopRecording} disabled={!isRecording}>
+            <button
+                onClick={() => {
+                    stopRecording();
+                    stopLive();
+                }}
+                disabled={!isRecording}
+            >
                 Parar Gravação
             </button>
 

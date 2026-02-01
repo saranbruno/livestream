@@ -20,27 +20,45 @@ const io = new Server(httpServer, {
     maxHttpBufferSize: 50 * 1e6,
 });
 
+const livesOnline: string[] = [];
+
 io.on("connection", (socket) => {
+    console.log("Usuario conectado: ", socket.id);
+
     socket.on("join-room", (room: string) => {
+        console.log(`Usuario ${socket.id} conectado a sala ${room}`);
         socket.join(room);
-        socket.emit("joined-room", room);
+        const status = livesOnline.includes(room);
+        socket.emit("joined-room", room, status);
     });
 
-    socket.on(
-        "video-chunk",
-        (meta: { id: string; room: string; mimeType: string }, payload: ArrayBuffer | Buffer) => {
-            if (!meta?.room || !meta?.id || !meta?.mimeType) return;
+    socket.on("live-start", (room: string) => {
+        console.log(`Live inciada na sala: ${room}`);
+        livesOnline.push(room);
+        io.to(room).emit("live-started");
+    });
 
-            const buffer =
-                payload instanceof ArrayBuffer
-                    ? payload
-                    : payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+    socket.on("video-chunk", (meta: { id: string; room: string; mimeType: string }, payload: ArrayBuffer | Buffer) => {
+        if (!meta?.room || !meta?.id || !meta?.mimeType) return;
 
-            io.to(meta.room).emit("live-chunk", meta, buffer);
-        }
-    );
+        const buffer =
+            payload instanceof ArrayBuffer
+                ? payload
+                : payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
 
-    socket.on("disconnect", () => { });
+        io.to(meta.room).emit("live-chunk", meta, buffer);
+    });
+
+    socket.on("live-end", (room: string) => {
+        console.log(`Live finalizada na sala: ${room}`);
+        const idx = livesOnline.indexOf(room);
+        if (idx !== -1) livesOnline.splice(idx, 1);
+        io.to(room).emit("live-ended");
+    });
+
+    socket.on("disconnect", () => {
+        console.log("Usuario desconectado: ", socket.id);
+    });
 });
 
 const PORT = Number(process.env.BACKEND_PORT || 2173);
