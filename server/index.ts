@@ -28,26 +28,12 @@ app.get("/get-online", (req, res) => {
     res.send({ rooms: livesOnline });
 });
 
-function toArrayBuffer(data: ArrayBuffer | SharedArrayBuffer | Buffer): ArrayBuffer {
-    if (data instanceof ArrayBuffer) {
-        return data;
-    }
-    if (Buffer.isBuffer(data)) {
-        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice().buffer;
-    }
-
-    return new Uint8Array(data).slice().buffer;
-}
-
 io.on("connection", (socket) => {
     console.log("Socket:", socket.id);
 
     socket.on("join-room", ({ room, role }) => {
         socket.join(room);
-
-        if (role === "viewer") {
-            socket.to(room).emit("viewer-joined", socket.id);
-        }
+        if (role === "viewer") socket.to(room).emit("viewer-joined", socket.id);
     });
 
     socket.on("request-offer", ({ room }) => {
@@ -55,10 +41,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("webrtc-offer", ({ to, offer }) => {
-        socket.to(to).emit("webrtc-offer", {
-            offer,
-            from: socket.id,
-        });
+        socket.to(to).emit("webrtc-offer", { offer, from: socket.id });
     });
 
     socket.on("webrtc-answer", ({ to, answer }) => {
@@ -69,9 +52,20 @@ io.on("connection", (socket) => {
         socket.to(to).emit("webrtc-ice", candidate);
     });
 
-    socket.on("disconnect", () => {
-        console.log("Disconnect:", socket.id);
+    socket.on("live-started", (room: string) => {
+        if (!livesOnline.includes(room)) livesOnline.push(room);
+        io.to(room).emit("live-started");
+        console.log(`Live started: ${room}`);
     });
+
+    socket.on("live-stopped", (room: string) => {
+        const index = livesOnline.indexOf(room);
+        if (index > -1) livesOnline.splice(index, 1);
+        io.to(room).emit("live-stopped");
+        console.log(`Live stopped: ${room}`);
+    });
+
+    socket.on("disconnect", () => console.log("Disconnect:", socket.id));
 });
 
 const PORT = Number(process.env.BACKEND_PORT || 2173);

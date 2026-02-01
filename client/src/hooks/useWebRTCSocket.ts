@@ -48,7 +48,10 @@ export function useWebRTCSocket(
     }, [room, webrtc]);
 
     useEffect(() => {
-        if (!webrtc.isRecording) return;
+        if (!webrtc.isRecording)  {
+            socketRef.current?.emit("live-stopped", room);
+            return;
+        }
         (async () => {
             const pending = [...viewersQueue.current];
             viewersQueue.current = [];
@@ -58,5 +61,6 @@ export function useWebRTCSocket(
                 socketRef.current?.emit("webrtc-offer", { to: viewerId, offer });
             }
         })();
+        socketRef.current?.emit("live-started", room);
     }, [webrtc.isRecording]);
 }

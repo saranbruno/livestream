@@ -2,8 +2,8 @@ import { useEffect, useRef } from "react";
 import { Box, Typography, Paper, Chip, Stack, Button } from "@mui/material";
 import CircleIcon from "@mui/icons-material/Circle";
 import { useParams } from "react-router-dom";
-import { useWebRTCStreamer } from "../../hooks/useScreenRecorder";
-import { useWebRTCSocket } from "../../hooks/useSocketRecorder";
+import { useWebRTCStreamer } from "../../hooks/useWebRTCStreamer";
+import { useWebRTCSocket } from "../../hooks/useWebRTCSocket";
 
 export default function Recorder() {
     const { room } = useParams<{ room: string }>();
@@ -11,7 +11,7 @@ export default function Recorder() {
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
 
     const streamer = useWebRTCStreamer();
-    
+
     useWebRTCSocket(room!, {
         ...streamer,
         isRecording: streamer.isRecording,
@@ -24,6 +24,8 @@ export default function Recorder() {
             videoPreviewRef.current.srcObject = previewStream;
         }
     }, [previewStream]);
+
+    
 
     return (
         <Box
