@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? "http://localhost:2173";
-
 let globalSocket: Socket | null = null;
 
 function getSocket() {
     if (!globalSocket) {
-        globalSocket = io(SOCKET_URL, { transports: ["websocket"] });
+        globalSocket = io({
+            path: "/server/socket.io",
+            transports: ["websocket"],
+        });
     } else if (!globalSocket.connected) {
         globalSocket.connect();
     }

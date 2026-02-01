@@ -15,6 +15,7 @@ app.use(express.json());
 app.get("/", (req, res) => res.send("Backend OK!"));
 
 const io = new Server(httpServer, {
+    path: "/server/socket.io",
     cors: { origin: "*" },
     maxHttpBufferSize: 50 * 1e6,
 });
