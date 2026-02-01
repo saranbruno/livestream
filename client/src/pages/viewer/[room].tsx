@@ -4,12 +4,17 @@ import CircleIcon from "@mui/icons-material/Circle";
 import { io } from "socket.io-client";
 import { useParams } from "react-router-dom";
 
+type OfferPayload =
+    | { offer: RTCSessionDescriptionInit; from: string }
+    | RTCSessionDescriptionInit;
+
 export default function Viewer() {
     const { room } = useParams<{ room: string }>();
     const videoRef = useRef<HTMLVideoElement>(null);
 
     const [isOnline, setIsOnline] = useState(false);
     const [queueSize] = useState(0);
+
     const peerIdRef = useRef<string | null>(null);
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
@@ -32,26 +37,62 @@ export default function Viewer() {
             setIsOnline(true);
         };
 
-        pc.onicecandidate = e => {
+        pc.onicecandidate = (e) => {
             if (e.candidate && peerIdRef.current) {
                 socket.emit("webrtc-ice", { to: peerIdRef.current, candidate: e.candidate });
             }
         };
 
-        socket.on("webrtc-offer", async ({ offer, from }) => {
-            peerIdRef.current = from;
+        const normalizeCandidate = (payload: any): RTCIceCandidateInit | null => {
+            if (!payload) return null;
+
+            const maybeNested = payload.candidate;
+            const c =
+                maybeNested &&
+                    typeof maybeNested === "object" &&
+                    typeof maybeNested.candidate === "string"
+                    ? maybeNested
+                    : payload;
+
+            if (!c || typeof c.candidate !== "string") return null;
+
+            return {
+                candidate: c.candidate,
+                sdpMid: c.sdpMid ?? null,
+                sdpMLineIndex: c.sdpMLineIndex ?? null,
+                usernameFragment: c.usernameFragment ?? null,
+            };
+        };
+
+
+        socket.on("webrtc-offer", async (payload: OfferPayload) => {
+            const offer =
+                (payload as any)?.offer ?? (payload as RTCSessionDescriptionInit);
+            const from =
+                (payload as any)?.from ?? peerIdRef.current;
+
+            if (from) peerIdRef.current = from;
+
             await pc.setRemoteDescription(offer);
 
-            pendingCandidates.current.forEach(c => pc.addIceCandidate(c));
+            pendingCandidates.current.forEach((c) => {
+                pc.addIceCandidate(c);
+            });
             pendingCandidates.current = [];
 
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            socket.emit("webrtc-answer", { to: from, answer });
+            if (from) socket.emit("webrtc-answer", { to: from, answer });
         });
 
-        socket.on("webrtc-ice", candidate => {
+        socket.on("webrtc-ice", (payload: any) => {
+            const candidate = normalizeCandidate(payload);
+            if (!candidate) return;
+
+            const from = payload?.from;
+            if (from && !peerIdRef.current) peerIdRef.current = from;
+
             if (pcRef.current?.remoteDescription) {
                 pcRef.current.addIceCandidate(candidate);
             } else {

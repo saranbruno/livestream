@@ -2,10 +2,14 @@ import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 
 type WebRTCHandlers = {
-    createOffer: () => Promise<RTCSessionDescriptionInit | null>;
-    applyAnswer: (answer: RTCSessionDescriptionInit) => void;
-    addIceCandidate: (candidate: RTCIceCandidateInit) => void;
-    onIceCandidate: (cb: (c: RTCIceCandidateInit) => void) => void;
+    createOffer: (viewerId?: string) => Promise<RTCSessionDescriptionInit | null>;
+    applyAnswer: (answer: RTCSessionDescriptionInit, viewerId?: string) => void | Promise<void>;
+    addIceCandidate: (candidate: RTCIceCandidateInit, viewerId?: string) => void | Promise<void>;
+    onIceCandidate: (
+        cb:
+            | ((c: RTCIceCandidateInit) => void)
+            | ((viewerId: string, c: RTCIceCandidateInit) => void)
+    ) => void;
 };
 
 export function useWebRTCSocket(
@@ -26,20 +30,38 @@ export function useWebRTCSocket(
                 viewersQueue.current.push(viewerId);
                 return;
             }
-            const offer = await webrtc.createOffer();
+            const offer = await webrtc.createOffer(viewerId);
             if (!offer) return;
             socket.emit("webrtc-offer", { to: viewerId, offer });
         });
 
-        socket.on("webrtc-answer", webrtc.applyAnswer);
-        socket.on("webrtc-ice", webrtc.addIceCandidate);
+        socket.on("webrtc-answer", (payload: any) => {
+            if (payload?.from && payload?.answer) {
+                webrtc.applyAnswer(payload.answer, payload.from);
+            } else {
+                webrtc.applyAnswer(payload);
+            }
+        });
 
-        webrtc.onIceCandidate((candidate) => {
-            const allViewers = [...viewersQueue.current];
-            viewersQueue.current = [];
-            allViewers.forEach((viewerId) => {
+        socket.on("webrtc-ice", (payload: any) => {
+            if (payload?.from && payload?.candidate) {
+                webrtc.addIceCandidate(payload.candidate, payload.from);
+            } else {
+                webrtc.addIceCandidate(payload);
+            }
+        });
+
+        webrtc.onIceCandidate((a: any, b?: any) => {
+            if (typeof a === "string") {
+                const viewerId = a;
+                const candidate = b as RTCIceCandidateInit;
                 socket.emit("webrtc-ice", { to: viewerId, candidate });
-            });
+            } else {
+                const candidate = a as RTCIceCandidateInit;
+                viewersQueue.current.forEach((viewerId) => {
+                    socket.emit("webrtc-ice", { to: viewerId, candidate });
+                });
+            }
         });
 
         return () => {
@@ -48,19 +70,22 @@ export function useWebRTCSocket(
     }, [room, webrtc]);
 
     useEffect(() => {
-        if (!webrtc.isRecording)  {
+        if (!webrtc.isRecording) {
             socketRef.current?.emit("live-stopped", room);
             return;
         }
+
         (async () => {
             const pending = [...viewersQueue.current];
             viewersQueue.current = [];
+
             for (const viewerId of pending) {
-                const offer = await webrtc.createOffer();
+                const offer = await webrtc.createOffer(viewerId);
                 if (!offer) continue;
                 socketRef.current?.emit("webrtc-offer", { to: viewerId, offer });
             }
         })();
+
         socketRef.current?.emit("live-started", room);
-    }, [webrtc.isRecording]);
+    }, [webrtc.isRecording, room, webrtc]);
 }

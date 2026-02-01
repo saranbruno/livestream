@@ -22,7 +22,6 @@ const io = new Server(httpServer, {
 });
 
 const livesOnline: string[] = [];
-const liveInitChunks = new Map<string, { mimeType: string; buffer: ArrayBuffer }>();
 
 app.get("/get-online", (req, res) => {
     res.send({ rooms: livesOnline });
@@ -45,11 +44,11 @@ io.on("connection", (socket) => {
     });
 
     socket.on("webrtc-answer", ({ to, answer }) => {
-        socket.to(to).emit("webrtc-answer", answer);
+        socket.to(to).emit("webrtc-answer", { from: socket.id, answer });
     });
 
     socket.on("webrtc-ice", ({ to, candidate }) => {
-        socket.to(to).emit("webrtc-ice", candidate);
+        socket.to(to).emit("webrtc-ice", { from: socket.id, candidate });
     });
 
     socket.on("live-started", (room: string) => {
