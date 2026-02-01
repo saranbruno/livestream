@@ -1,8 +1,8 @@
 import { useRef, useState, useCallback } from "react";
 
 type IceCb =
-    | ((candidate: RTCIceCandidateInit) => void) // compat (1 viewer)
-    | ((viewerId: string, candidate: RTCIceCandidateInit) => void); // multi
+    | ((candidate: RTCIceCandidateInit) => void)
+    | ((viewerId: string, candidate: RTCIceCandidateInit) => void);
 
 const DEFAULT_VIEWER_ID = "__default__";
 
