@@ -118,17 +118,9 @@ export default function Viewer() {
         };
     }, [ensureSourceBuffer, pump]);
 
-    const enableAudio = () => {
-        const v = videoRef.current;
-        if (!v) return;
-        v.muted = false;
-        v.play().catch(() => { });
-    };
-
     return (
         <div>
             <h2>Viewer Live</h2>
-            <button onClick={enableAudio}>Ativar áudio</button>
             <video ref={videoRef} autoPlay muted playsInline controls width="800" />
             <p>Chunks na fila: {queueSize}</p>
             <p>Online: {isOnline ? "true" : "false"}</p>
