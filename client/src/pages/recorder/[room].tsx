@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Box, Typography, Paper, Chip, Stack, Button } from "@mui/material";
 import CircleIcon from "@mui/icons-material/Circle";
 import useScreenRecorder from "../../hooks/useScreenRecorder";
@@ -7,10 +7,17 @@ import { useParams } from "react-router-dom";
 
 export default function Recorder() {
     const { room } = useParams<{ room: string }>();
+    const { startLive, sendChunk, stopLive } = useSocketRecorder(room || "default");
 
-    const { startLive, sendChunk, stopLive } = useSocketRecorder(room);
+    const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
-    const { isRecording, startRecording, stopRecording, videoUrl } = useScreenRecorder(({ blob, mimeType }) => {
+    const {
+        isRecording,
+        startRecording,
+        stopRecording,
+        videoUrl,
+        mediaStream
+    } = useScreenRecorder(({ blob, mimeType }) => {
         sendChunk(blob, mimeType);
     });
 
@@ -18,6 +25,12 @@ export default function Recorder() {
         if (isRecording) startLive();
         else stopLive();
     }, [isRecording]);
+
+    useEffect(() => {
+        if (videoPreviewRef.current && mediaStream) {
+            videoPreviewRef.current.srcObject = mediaStream;
+        }
+    }, [mediaStream]);
 
     return (
         <Box
@@ -76,19 +89,23 @@ export default function Recorder() {
                             justifyContent: "center",
                         }}
                     >
-                        {videoUrl ? (
+                        {isRecording ? (
+                            <video
+                                ref={videoPreviewRef}
+                                autoPlay
+                                muted
+                                playsInline
+                                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                            />
+                        ) : videoUrl ? (
                             <video
                                 src={videoUrl}
                                 controls
-                                style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "contain",
-                                }}
+                                style={{ width: "100%", height: "100%", objectFit: "contain" }}
                             />
                         ) : (
                             <Typography color="#777">
-                                {isRecording ? "Transmitindo..." : "Clique em iniciar para começar a live"}
+                                Clique em iniciar para começar a live
                             </Typography>
                         )}
                     </Box>
