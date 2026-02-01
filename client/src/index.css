@@ -1,1 +1,6 @@
-body { font-family: system-ui; margin: 0; }
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
