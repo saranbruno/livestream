@@ -103,7 +103,7 @@ export default function Viewer() {
         setIsOnline(false);
         setDebugInfo("Conectando ao servidor...");
 
-        const socket: Socket = io("http://localhost:2173", { 
+        const socket: Socket = io({ 
             path: "/server/socket.io",
             transports: ["websocket"]
         });

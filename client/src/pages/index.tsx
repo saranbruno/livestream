@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Paper, Stack, Typography, Button, TextField } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import axios from 'axios';
 
 type Mode = "viewer" | "recorder" | null;
 
@@ -9,11 +10,22 @@ export default function Index() {
 
     const [mode, setMode] = useState<Mode>(null);
     const [room, setRoom] = useState("");
+    const [roomsOnline, setRoomsOnline] = useState<string[]>([]);
 
     const handleContinue = () => {
         if (!mode || !room.trim()) return;
         navigate(`/${mode}/${room.trim()}`);
     };
+
+    useEffect(() => {
+        (async () => {
+            const resp = await axios.get('/server/get-online');
+
+            if (resp.data && resp.data.rooms) {
+                setRoomsOnline(resp.data.rooms);
+            }
+        })();
+    }, [mode]);
 
     return (
         <Box
@@ -38,12 +50,10 @@ export default function Index() {
                 }}
             >
                 <Stack spacing={3}>
-                    {/* Header */}
                     <Typography fontSize={20} fontWeight={600} color="#fff" textAlign="center">
                         Livestream
                     </Typography>
 
-                    {/* Step 1 */}
                     {!mode && (
                         <Stack spacing={2}>
                             <Typography color="#aaa" textAlign="center">
@@ -80,7 +90,6 @@ export default function Index() {
                         </Stack>
                     )}
 
-                    {/* Step 2 */}
                     {mode && (
                         <Stack spacing={2}>
                             <Typography color="#aaa">
@@ -101,6 +110,38 @@ export default function Index() {
                                     },
                                 }}
                             />
+
+                            {roomsOnline?.length > 0 && (
+                                <Stack spacing={1}>
+                                    <Typography fontSize={13} color="#777">
+                                        Salas online
+                                    </Typography>
+
+                                    <Stack spacing={0.5}>
+                                        {roomsOnline.map((roomName) => (
+                                            <Button
+                                                key={roomName}
+                                                onClick={() => setRoom(roomName)}
+                                                variant="text"
+                                                fullWidth
+                                                sx={{
+                                                    justifyContent: "flex-start",
+                                                    textTransform: "none",
+                                                    color: "#ccc",
+                                                    bgcolor: "#0b0b0f",
+                                                    border: "1px solid rgba(255,255,255,0.06)",
+                                                    "&:hover": {
+                                                        bgcolor: "rgba(138,43,226,0.12)",
+                                                        borderColor: "rgba(138,43,226,0.4)",
+                                                    },
+                                                }}
+                                            >
+                                                {roomName}
+                                            </Button>
+                                        ))}
+                                    </Stack>
+                                </Stack>
+                            )}
 
                             <Stack direction="row" spacing={1.5}>
                                 <Button

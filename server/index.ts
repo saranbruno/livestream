@@ -15,7 +15,7 @@ app.use(express.json());
 app.get("/", (req, res) => res.send("Backend Video Server Running"));
 
 const io = new Server(httpServer, {
-    path: "/server/socket.io",
+    path: "/socket.io",
     cors: { origin: "*" },
     maxHttpBufferSize: 50 * 1e6,
     pingTimeout: 60000,
@@ -23,6 +23,10 @@ const io = new Server(httpServer, {
 
 const livesOnline: string[] = [];
 const liveInitChunks = new Map<string, { mimeType: string; buffer: ArrayBuffer }>();
+
+app.get("/get-online", (req, res) => {
+    res.send({ rooms: livesOnline });
+});
 
 function toArrayBuffer(data: ArrayBuffer | SharedArrayBuffer | Buffer): ArrayBuffer {
     if (data instanceof ArrayBuffer) {
@@ -42,7 +46,7 @@ io.on("connection", (socket) => {
         socket.join(room);
         const isLive = livesOnline.includes(room);
         console.log(`[Join] ${socket.id} entrou em ${room}. Live on? ${isLive}`);
-        
+
         socket.emit("joined-room", room, isLive);
 
         if (isLive) {
@@ -57,9 +61,9 @@ io.on("connection", (socket) => {
     socket.on("live-start", (room: string) => {
         console.log(`[Streamer] Live iniciada: ${room}`);
         if (!livesOnline.includes(room)) livesOnline.push(room);
-        
-        liveInitChunks.delete(room); 
-        
+
+        liveInitChunks.delete(room);
+
         io.to(room).emit("live-started");
     });
 
@@ -70,7 +74,7 @@ io.on("connection", (socket) => {
 
         if (!liveInitChunks.has(meta.room)) {
             console.log(`[Streamer] ${meta.room} - Capturado HEADER (Init). Bytes: ${buffer.byteLength}`);
-            
+
             liveInitChunks.set(meta.room, {
                 mimeType: meta.mimeType,
                 buffer
