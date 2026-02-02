@@ -70,6 +70,6 @@ io.on("connection", (socket) => {
 const PORT = Number(process.env.BACKEND_PORT || 2173);
 httpServer.listen(PORT, () => {
     console.log(`-----------------------------------------`);
-    console.log(`🚀 Backend Socket.IO rodando na porta ${PORT}`);
+    console.log(`Backend Socket.IO rodando na porta ${PORT}`);
     console.log(`-----------------------------------------`);
 });

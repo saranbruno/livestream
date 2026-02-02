@@ -139,8 +139,6 @@ export default function Viewer() {
                             <Typography color="#777">A live não está online no momento</Typography>
                         </Box>
                     )}
-
-                    <Typography fontSize={12} color="#666" textAlign="right">Chunks na fila: {queueSize}</Typography>
                 </Stack>
             </Paper>
         </Box>
