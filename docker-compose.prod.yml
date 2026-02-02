@@ -19,10 +19,12 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     depends_on: [ streaming ]
     networks: [ streaming ]
     volumes:
       - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf
+      - /etc/nginx/ssl:/etc/nginx/ssl:ro
 
 networks:
   streaming:
