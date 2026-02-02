@@ -1,0 +1,29 @@
+services:
+  streaming:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: streaming
+    restart: unless-stopped
+    env_file: [ .env ]
+    ports:
+      - "2173:2173"
+      - "9173:9173"
+    networks: [ streaming ]
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on: [ streaming ]
+    networks: [ streaming ]
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+
+networks:
+  streaming:
+    driver: bridge

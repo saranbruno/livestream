@@ -6,7 +6,11 @@
   "scripts": {
     "dev:server": "nodemon --exec \"ts-node --project tsconfig.server.json server/index.ts\"",
     "dev:client": "vite client --host",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\""
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "tsc --project tsconfig.server.json",
+    "build:client": "vite build client",
+    "build": "npm run build:server && npm run build:client",
+    "start": "node dist/server/index.js"
   },
   "keywords": [],
   "author": "",
