@@ -57,6 +57,10 @@ export function useWebRTCStreamer() {
     const start = useCallback(async () => {
         if (isRecording) return;
 
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+            throw new Error("Screen share não suportado ou página não está em HTTPS.");
+        }
+
         const stream = await navigator.mediaDevices.getDisplayMedia({
             video: true,
             audio: true,
