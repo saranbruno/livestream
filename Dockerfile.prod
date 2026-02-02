@@ -15,4 +15,5 @@ EXPOSE 2173 9173
 CMD ["node", "dist/server/index.js"]
 
 FROM nginx:alpine AS web
-COPY --from=build /app/dist /usr/share/nginx/html
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=build /app/client/dist/ /usr/share/nginx/html/
