@@ -2,7 +2,7 @@ services:
   streaming:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
       target: streaming
     restart: unless-stopped
     env_file: [ .env ]
@@ -14,7 +14,7 @@ services:
   nginx:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
       target: web
     restart: unless-stopped
     ports:
