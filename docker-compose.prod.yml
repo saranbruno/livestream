@@ -22,7 +22,7 @@ services:
     depends_on: [ streaming ]
     networks: [ streaming ]
     volumes:
-      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf
 
 networks:
   streaming:
